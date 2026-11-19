@@ -82,4 +82,5 @@ export const TUNING = {
   shotSpeed: 1350, // px per second along the traced path
   maxTraceSteps: 20000, // safety valve for malformed angles
   minAngle: 0.2, // radians away from horizontal (~11.5 degrees)
+  collisionInset: 1, // px shaved from each bubble for the circle intersection
 };

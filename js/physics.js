@@ -26,6 +26,48 @@ function cumulativeDistances(points) {
   return distances;
 }
 
+/**
+ * Swept circle-vs-segment intersection. The projectile travels from A to B
+ * during one substep; the target is a circle of `radius` around C. Returns the
+ * first entry point, so a fast projectile cannot tunnel through a bubble and a
+ * projectile outside the radius is never considered a hit.
+ */
+export function segmentCircleHit(ax, ay, bx, by, cx, cy, radius) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const fx = ax - cx;
+  const fy = ay - cy;
+  const a = dx * dx + dy * dy;
+  const b = 2 * (fx * dx + fy * dy);
+  const c = fx * fx + fy * fy - radius * radius;
+
+  if (a === 0) {
+    if (c > 0) return null;
+    return { hit: true, t: 0, x: ax, y: ay, distance: Math.sqrt(Math.max(0, c)) };
+  }
+
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) return null;
+
+  const sqrt = Math.sqrt(discriminant);
+  let t = (-b - sqrt) / (2 * a);
+  if (t < 0) {
+    // The segment starts inside the collision circle (or the circle is behind
+    // the start); only the former is a valid contact.
+    if (c > 0) return null;
+    t = 0;
+  }
+  if (t > 1) return null;
+
+  return {
+    hit: true,
+    t,
+    x: ax + dx * t,
+    y: ay + dy * t,
+    distance: radius,
+  };
+}
+
 /** Nearest legal empty cell to `contact`.
  *
  *  - A bubble hit prefers the empty neighbours of the bubble that was hit.
@@ -87,7 +129,7 @@ export function findSnapCell(grid, layout, contact, hitCell, options = {}) {
  */
 export function traceShot(grid, layout, start, angle, options = {}) {
   const R = layout.radius;
-  const step = Math.max(1.2, R * 0.26);
+  const step = Math.max(1, R * 0.18);
   const maxSteps = options.maxSteps ?? TUNING.maxTraceSteps;
   const left = layout.left;
   const right = layout.left + R * 2 * COLS;
@@ -122,58 +164,49 @@ export function traceShot(grid, layout, start, angle, options = {}) {
     };
   };
 
+  const collisionRadius = Math.max(4, (R - TUNING.collisionInset) * 2);
+
   for (let i = 0; i < maxSteps; i += 1) {
     let nx = x + dx * step;
     let ny = y + dy * step;
+    let ceilingReached = false;
+
+    // End the segment exactly at the first ceiling contact so a bubble just
+    // below the ceiling is checked before the ceiling itself.
+    if (dy < 0 && ny - R <= ceiling) {
+      const t = (ceiling + R - y) / (ny - y);
+      if (t >= 0 && t <= 1) {
+        nx = x + (nx - x) * t;
+        ny = ceiling + R;
+        ceilingReached = true;
+      }
+    }
+
     let reflected = false;
-
-    if (nx - R < left && dx < 0) {
+    if (dx < 0 && nx - R < left) {
       nx = left + R;
-      dx = -dx;
-      bounces += 1;
       reflected = true;
-      points.push({ x: nx, y: ny });
-      bounceIndices.push(points.length - 1);
-    } else if (nx + R > right && dx > 0) {
+    } else if (dx > 0 && nx + R > right) {
       nx = right - R;
-      dx = -dx;
-      bounces += 1;
       reflected = true;
-      points.push({ x: nx, y: ny });
-      bounceIndices.push(points.length - 1);
     }
 
-    if (ny - R <= ceiling) {
-      const contact = {
-        x: Math.min(right - R, Math.max(left + R, nx)),
-        y: ceiling + R * 0.98,
-      };
-      points.push(contact);
-      return finalize(contact, 'ceiling', null, findSnapCell(grid, layout, contact, null, { ceiling: true }));
-    }
-
+    // Swept collision against every bubble on this substep. Only the first
+    // real intersection with the shrunk collision circles counts.
     let hit = null;
-    let bestDistance = Infinity;
+    let hitT = Infinity;
     grid.forEachOccupied((color, r, c) => {
       const cx = layout.cellX(r, c);
       const cy = layout.cellY(r);
-      const distance = Math.hypot(nx - cx, ny - cy);
-      if (distance < R * 2 * 0.985 && distance < bestDistance) {
-        bestDistance = distance;
-        hit = { r, c, color };
+      const result = segmentCircleHit(x, y, nx, ny, cx, cy, collisionRadius);
+      if (result && result.t < hitT) {
+        hitT = result.t;
+        hit = { r, c, color, x: result.x, y: result.y };
       }
     });
 
     if (hit) {
-      const bx = layout.cellX(hit.r, hit.c);
-      const by = layout.cellY(hit.r);
-      let vx = x - bx;
-      let vy = y - by;
-      const distance = Math.hypot(vx, vy) || 1;
-      const contact = {
-        x: bx + (vx / distance) * R * 1.99,
-        y: by + (vy / distance) * R * 1.99,
-      };
+      const contact = { x: hit.x, y: hit.y };
       points.push(contact);
       return finalize(
         contact,
@@ -183,9 +216,26 @@ export function traceShot(grid, layout, start, angle, options = {}) {
       );
     }
 
+    if (ceilingReached) {
+      const contact = { x: nx, y: ny };
+      points.push(contact);
+      return finalize(
+        contact,
+        'ceiling',
+        null,
+        findSnapCell(grid, layout, contact, null, { ceiling: true }),
+      );
+    }
+
     x = nx;
     y = ny;
-    if (!reflected) points.push({ x, y });
+    points.push({ x, y });
+
+    if (reflected) {
+      dx = -dx;
+      bounces += 1;
+      bounceIndices.push(points.length - 1);
+    }
   }
 
   // Defensive fallback for a malformed angle that never reaches the board.
