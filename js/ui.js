@@ -1,0 +1,406 @@
+/**
+ * DOM presentation: screens, HUD, level map, shop, settings and toasts.
+ * Game logic stays in Game; this module only reflects it.
+ */
+import { BOOSTER_ORDER, BOOSTERS } from './config.js';
+import { LEVELS } from './levels.js';
+
+const $ = (id) => document.getElementById(id);
+const starsMarkup = () => `
+  <svg class="icon star"><use href="#i-star"></use></svg>
+  <svg class="icon star"><use href="#i-star"></use></svg>
+  <svg class="icon star"><use href="#i-star"></use></svg>`;
+
+export class UI {
+  constructor({ store, onAction }) {
+    this.store = store;
+    this.onAction = onAction;
+    this.screens = [...document.querySelectorAll('.screen')];
+    this.currentScreen = 'menu';
+    this.backTarget = 'menu';
+    this.installOpen = false;
+    this.toastTimer = 0;
+    this.levelNameTimer = 0;
+
+    this.el = {
+      gameUi: $('gameUi'),
+      hudLevel: $('hudLevel'),
+      hudStars: $('hudStars'),
+      hudCoins: $('hudCoins'),
+      hudCoinChip: $('hudCoinChip'),
+      dockShots: $('dockShots'),
+      shotsPill: $('shotsPill'),
+      progressFill: $('progressFill'),
+      boosterBar: $('boosterBar'),
+      hudSound: $('btnSound'),
+      hudMusic: $('btnMusic'),
+      stageLevelName: $('stageLevelName'),
+      targetHint: $('targetHint'),
+      targetHintText: $('targetHintText'),
+      cancelBooster: $('btnCancelBooster'),
+      toast: $('toast'),
+      levelGrid: $('levelGrid'),
+      levelsProgressFill: $('levelsProgressFill'),
+      levelsProgressText: $('levelsProgressText'),
+      shopList: $('shopList'),
+      menuStars: $('menuStars'),
+      playSub: $('playSub'),
+      installHint: $('installHint'),
+      installScreen: document.querySelector('[data-screen="install"]'),
+      winStars: $('winStars'),
+      winScore: $('winScore'),
+      winCoins: $('winCoins'),
+      winShots: $('winShots'),
+      btnNextLevel: $('btnNextLevel'),
+      loseTitle: $('loseTitle'),
+      loseText: $('loseText'),
+      loseScore: $('loseScore'),
+      loseCoins: $('loseCoins'),
+      loseLeft: $('loseLeft'),
+      pauseShots: $('pauseShots'),
+      toggleSound: $('toggleSound'),
+      toggleMusic: $('toggleMusic'),
+      confirmReset: $('confirmReset'),
+      offlineStatus: $('offlineStatus'),
+    };
+
+    this.bind();
+    this.renderAll();
+    this.applySettings();
+    this.updateInstallHint();
+    this.showScreen('menu');
+  }
+
+  bind() {
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('#installHintClose')) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.dismissInstallHint();
+        return;
+      }
+      const actionEl = event.target.closest('[data-action]');
+      if (!actionEl) return;
+      event.preventDefault();
+      this.onAction(actionEl.dataset.action, { ...actionEl.dataset }, actionEl);
+    });
+
+    document.addEventListener('contextmenu', (event) => {
+      if (event.target.closest('#game') || event.target.closest('.screen')) {
+        event.preventDefault();
+      }
+    });
+
+    // Keep the game surface from being zoomed by a double tap on iOS.
+    let lastTouch = 0;
+    document.addEventListener(
+      'touchend',
+      (event) => {
+        const now = Date.now();
+        if (now - lastTouch < 280 && event.target.closest('#game')) event.preventDefault();
+        lastTouch = now;
+      },
+      { passive: false },
+    );
+
+    window.addEventListener('resize', () => this.updateInstallHint());
+  }
+
+  /* ------------------------------------------------------------- screens */
+
+  showScreen(name) {
+    this.currentScreen = name;
+    for (const screen of this.screens) {
+      screen.classList.toggle('is-active', screen.dataset.screen === name);
+    }
+    this.installOpen = false;
+    this.el.installScreen.classList.remove('is-active');
+    this.hideConfirm();
+    document.body.dataset.screen = name || 'game';
+    document.body.classList.toggle('mode-menu', ['menu', 'levels', 'shop', 'settings'].includes(name));
+  }
+
+  showInstall() {
+    this.installOpen = true;
+    this.el.installScreen.classList.add('is-active');
+    document.body.dataset.screen = 'install';
+  }
+
+  closeInstall() {
+    this.installOpen = false;
+    this.el.installScreen.classList.remove('is-active');
+    document.body.dataset.screen = this.currentScreen || 'menu';
+  }
+
+  hideConfirm() {
+    this.el.confirmReset.hidden = true;
+  }
+
+  showConfirm() {
+    this.el.confirmReset.hidden = false;
+  }
+
+  isMetaScreen() {
+    return ['menu', 'levels', 'shop', 'settings'].includes(this.currentScreen);
+  }
+
+  /* --------------------------------------------------------------- toast */
+
+  toast(text, duration = 2000) {
+    clearTimeout(this.toastTimer);
+    this.el.toast.textContent = text;
+    this.el.toast.classList.add('is-show');
+    this.toastTimer = setTimeout(() => this.el.toast.classList.remove('is-show'), duration);
+  }
+
+  flashLevelName(name) {
+    clearTimeout(this.levelNameTimer);
+    this.el.stageLevelName.textContent = name;
+    this.el.stageLevelName.classList.add('is-show');
+    this.levelNameTimer = setTimeout(() => {
+      this.el.stageLevelName.classList.remove('is-show');
+    }, 1900);
+  }
+
+  /* --------------------------------------------------------------- coins */
+
+  setCoins(value, { bump = true } = {}) {
+    const text = Number(value).toLocaleString('ru-RU');
+    this.el.hudCoins.textContent = text;
+    document.querySelectorAll('.js-coins').forEach((node) => {
+      node.textContent = text;
+    });
+    if (bump) {
+      this.el.hudCoinChip.classList.remove('is-bump');
+      // restart the CSS animation
+      void this.el.hudCoinChip.offsetWidth;
+      this.el.hudCoinChip.classList.add('is-bump');
+    }
+  }
+
+  /* ---------------------------------------------------------------- menu */
+
+  renderAll() {
+    this.setCoins(this.store.coins, { bump: false });
+    this.renderMenu();
+    this.renderLevels();
+    this.renderShop();
+    this.applySettings();
+  }
+
+  renderMenu() {
+    let stars = 0;
+    let completed = 0;
+    for (const level of LEVELS) {
+      const rec = this.store.getLevelRecord(level.id);
+      stars += rec.stars;
+      if (rec.stars > 0) completed += 1;
+    }
+    this.el.menuStars.textContent = String(stars);
+    const unlocked = this.store.unlocked;
+    const allDone = completed >= LEVELS.length;
+    const label = allDone
+      ? 'Все уровни пройдены'
+      : unlocked <= 1 && stars === 0
+        ? 'Начать игру'
+        : `Продолжить · уровень ${unlocked}`;
+    this.el.playSub.textContent = label;
+  }
+
+  renderLevels() {
+    const frag = [];
+    for (const level of LEVELS) {
+      const unlocked = level.id <= this.store.unlocked;
+      const rec = this.store.getLevelRecord(level.id);
+      const classes = ['level-tile'];
+      if (!unlocked) classes.push('is-locked');
+      if (rec.stars > 0) classes.push('is-done');
+      if (level.id === Math.min(LEVELS.length, this.store.unlocked) && unlocked) classes.push('is-current');
+      frag.push(`
+        <button class="${classes.join(' ')}" type="button"
+          data-action="${unlocked ? 'level' : 'lockedLevel'}" data-level="${level.id}"
+          ${unlocked ? '' : 'aria-disabled="true"'}
+          aria-label="Уровень ${level.id}. ${level.name}. ${rec.stars} из 3 звёзд${unlocked ? '' : '. Закрыт'}">
+          ${unlocked ? '' : '<svg class="icon lock-chip"><use href="#i-lock"></use></svg>'}
+          <b>${level.id}</b>
+          <div class="stars" data-stars="${rec.stars}" aria-hidden="true">${starsMarkup()}</div>
+          <small>${unlocked ? (rec.stars > 0 ? 'пройден' : 'играть') : 'закрыт'}</small>
+        </button>`);
+    }
+    this.el.levelGrid.innerHTML = frag.join('');
+    let completed = 0;
+    for (const level of LEVELS) {
+      if (this.store.getLevelRecord(level.id).stars > 0) completed += 1;
+    }
+    const percent = Math.round((completed / LEVELS.length) * 100);
+    this.el.levelsProgressFill.style.width = `${percent}%`;
+    this.el.levelsProgressText.textContent = `${completed} из ${LEVELS.length} уровней`;
+  }
+
+  renderShop() {
+    const items = BOOSTER_ORDER.map((id) => {
+      const booster = BOOSTERS[id];
+      const owned = this.store.boosterCount(id);
+      const affordable = this.store.coins >= booster.price;
+      return `
+        <article class="shop-item">
+          <div class="shop-item__icon" style="color:${booster.color}">
+            <svg class="icon"><use href="#i-${id}"></use></svg>
+          </div>
+          <div class="shop-item__body">
+            <b>${booster.name}${owned ? `<em>${owned} шт.</em>` : ''}</b>
+            <p>${booster.desc}</p>
+          </div>
+          <button class="shop-buy" type="button" data-action="buy" data-booster="${id}"
+            aria-label="Купить ${booster.name} за ${booster.price} монет"
+            ${affordable ? '' : 'disabled'}>
+            <svg class="icon"><use href="#i-coin"></use></svg>${booster.price}
+          </button>
+        </article>`;
+    });
+    this.el.shopList.innerHTML = items.join('');
+  }
+
+  /* ----------------------------------------------------------------- hud */
+
+  syncHud(game) {
+    if (!game) return;
+    const level = game.level;
+    this.el.hudLevel.textContent = String(level.id);
+    const best = this.store.getLevelRecord(level.id).stars;
+    this.el.hudStars.dataset.stars = String(best);
+    this.el.dockShots.textContent = String(game.shots);
+    this.el.shotsPill.classList.toggle('is-low', game.shots <= 5);
+    this.el.shotsPill.setAttribute('aria-label', `Осталось ходов: ${game.shots}`);
+    const progress = game.startBubbles
+      ? Math.round((1 - game.grid.count() / game.startBubbles) * 100)
+      : 100;
+    this.el.progressFill.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+    this.setCoins(this.store.coins, { bump: false });
+    this.syncBoosters();
+  }
+
+  syncBoosters() {
+    for (const id of BOOSTER_ORDER) {
+      const button = this.el.boosterBar.querySelector(`[data-booster="${id}"]`);
+      if (!button) continue;
+      const count = this.store.boosterCount(id);
+      const badge = button.querySelector('.booster__count');
+      if (badge) badge.textContent = String(count);
+      button.classList.toggle('is-empty', count <= 0);
+      button.disabled = false;
+      button.setAttribute(
+        'aria-label',
+        `${BOOSTERS[id].name}. В наличии: ${count}. ${BOOSTERS[id].desc}`,
+      );
+    }
+  }
+
+  setBoosterActive(type) {
+    this.el.boosterBar.querySelectorAll('.booster').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.booster === type);
+    });
+  }
+
+  showTargetHint(type) {
+    const hints = {
+      bomb: 'Выберите шарик для взрыва',
+      lightning: 'Выберите цвет — молния уберёт его весь',
+      rocket: 'Выберите шарик — ракета сожжёт ряд',
+    };
+    this.el.targetHintText.textContent = hints[type] || 'Выберите шарик';
+    this.el.targetHint.hidden = false;
+    this.setBoosterActive(type);
+  }
+
+  hideTargetHint() {
+    this.el.targetHint.hidden = true;
+    this.setBoosterActive(null);
+  }
+
+  /* ------------------------------------------------------------- results */
+
+  showWin({ game, stars, coins, nextExists }) {
+    this.syncHud(game);
+    this.renderMenu();
+    this.renderLevels();
+    this.el.winStars.dataset.stars = '0';
+    this.el.winScore.textContent = String(game.score);
+    this.el.winCoins.textContent = `+${coins}`;
+    this.el.winShots.textContent = String(game.shots);
+    this.el.btnNextLevel.textContent = nextExists ? 'Далее' : 'К уровням';
+    this.showScreen('win');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.el.winStars.dataset.stars = String(stars);
+      });
+    });
+  }
+
+  showLose({ game, reason }) {
+    this.syncHud(game);
+    const overflow = reason === 'overflow';
+    this.el.loseTitle.textContent = overflow ? 'Поле переполнено' : 'Ходы закончились';
+    this.el.loseText.textContent = overflow
+      ? 'Шарики добрались до пушки. Попробуйте другой маршрут — или возьмите бустер.'
+      : 'Шарики остались на поле. Попробуйте ещё раз — или возьмите бустер.';
+    this.el.loseScore.textContent = String(game.score);
+    this.el.loseCoins.textContent = `+${game.coinsEarned}`;
+    this.el.loseLeft.textContent = String(game.grid.count());
+    this.showScreen('lose');
+  }
+
+  showPause(game) {
+    if (game) {
+      this.el.pauseShots.textContent = String(game.shots);
+      this.syncHud(game);
+    }
+    this.showScreen('pause');
+  }
+
+  /* ------------------------------------------------------------ settings */
+
+  applySettings() {
+    const { sound, music } = this.store.settings;
+    this.el.toggleSound.setAttribute('aria-checked', String(sound));
+    this.el.toggleMusic.setAttribute('aria-checked', String(music));
+    this.setIcon(this.el.hudSound, sound ? '#i-sound' : '#i-sound-off');
+    this.setIcon(this.el.hudMusic, music ? '#i-music' : '#i-music-off');
+    this.el.hudSound.classList.toggle('is-off', !sound);
+    this.el.hudMusic.classList.toggle('is-off', !music);
+  }
+
+  setIcon(button, href) {
+    const use = button.querySelector('use');
+    if (use) use.setAttribute('href', href);
+  }
+
+  setOfflineReady(ready) {
+    const node = this.el.offlineStatus;
+    if (!node) return;
+    node.innerHTML = ready ? '<i></i> офлайн' : '<i></i> кэш';
+    node.style.opacity = ready ? '1' : '0.55';
+  }
+
+  updateInstallHint() {
+    const standalone =
+      window.navigator.standalone === true ||
+      window.matchMedia('(display-mode: standalone)').matches;
+    this.el.installHint.hidden = standalone || this.store.settings.hintDismissed;
+  }
+
+  dismissInstallHint() {
+    this.store.setSettings({ hintDismissed: true });
+    this.el.installHint.hidden = true;
+  }
+
+  /* -------------------------------------------------------------- helpers */
+
+  boosterButton(id) {
+    return this.el.boosterBar.querySelector(`[data-booster="${id}"]`);
+  }
+
+  setNextLevelLabel(text) {
+    this.el.btnNextLevel.textContent = text;
+  }
+}
