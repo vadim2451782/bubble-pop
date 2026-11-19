@@ -631,8 +631,31 @@ export class Renderer {
       ctx.fill();
     }
 
-    // Only the dotted trajectory is shown; no ghost bubble at the landing
-    // cell. Players found the ghost looked like the shot teleporting.
+    // The dotted line is the projectile's centre path. It ends one radius
+    // before the hit bubble, so extend it to the actual surface for a complete
+    // aim arrow, then draw a tiny impact dot (not a ghost bubble).
+    const lastPoint = trace.points[trace.points.length - 1];
+    const impact = trace.aimPoint;
+    if (impact && Math.hypot(impact.x - lastPoint.x, impact.y - lastPoint.y) > 0.5) {
+      const impactColor = color
+        ? rgba(color.light, 0.7 * active)
+        : `hsla(${(this.time * 90) % 360}, 95%, 74%, ${0.7 * active})`;
+      ctx.save();
+      ctx.strokeStyle = impactColor;
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(lastPoint.x, lastPoint.y);
+      ctx.lineTo(impact.x, impact.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(impact.x, impact.y, Math.max(1.5, R * 0.11), 0, TAU);
+      ctx.fillStyle = impactColor;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // No ghost bubble at the landing cell.
   }
 
   drawGrid(view) {
