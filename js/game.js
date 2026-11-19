@@ -2,7 +2,7 @@
  * Core game engine. Owns the board, shots, score, stars and boosters.
  * No DOM and no timers: the controller animates, the engine decides.
  */
-import { RAINBOW, SCORE } from './config.js';
+import { BUBBLES_PER_COIN, RAINBOW, SCORE } from './config.js';
 import { BubbleGrid } from './grid.js';
 import { shooterMuzzle } from './layout.js';
 import { clampAimAngle, traceShot } from './physics.js';
@@ -20,6 +20,7 @@ export class Game {
     this.score = 0;
     this.stars = 0;
     this.coinsEarned = 0;
+    this.coinBubbles = 0;
     this.phase = 'aim';
     this.loseReason = null;
     this.current = this.pickColor();
@@ -138,11 +139,18 @@ export class Game {
       Math.max(0, popped - 3) * SCORE.clusterBonus +
       falling * SCORE.falling;
     this.score += gain;
-    this.coinsEarned += popped + falling;
+
+    // Coins are deliberately scarce: one coin per four cleared bubbles, with
+    // the remainder carried over between shots.
+    this.coinBubbles += popped + falling;
+    const coinsGain = Math.floor(this.coinBubbles / BUBBLES_PER_COIN);
+    this.coinBubbles -= coinsGain * BUBBLES_PER_COIN;
+    this.coinsEarned += coinsGain;
+
     this.stats.popped += popped;
     this.stats.falling += falling;
     result.scoreGain = gain;
-    result.coinsGain = popped + falling;
+    result.coinsGain = coinsGain;
 
     this.current = this.next;
     this.next = this.pickColor();
@@ -195,9 +203,28 @@ export class Game {
         if (color === target) removed.push({ r, c });
       });
     } else if (type === 'rocket') {
-      this.grid.rows[cell.r].forEach((color, c) => {
-        if (color) removed.push({ r: cell.r, c });
-      });
+      // Vertical beam through the selected bubble: one nearest cell in every
+      // row (the hex rows are staggered, so this is the closest thing to a
+      // straight vertical column).
+      const beamX = this.layout.cellX(cell.r, cell.c);
+      for (let r = 0; r < this.grid.rows.length; r += 1) {
+        let bestC = -1;
+        let bestDistance = Infinity;
+        for (let c = 0; c < this.grid.rows[r].length; c += 1) {
+          const distance = Math.abs(this.layout.cellX(r, c) - beamX);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestC = c;
+          }
+        }
+        if (
+          bestC >= 0 &&
+          bestDistance <= this.layout.radius * 1.01 &&
+          this.grid.get(r, bestC)
+        ) {
+          removed.push({ r, c: bestC });
+        }
+      }
     } else {
       return null;
     }

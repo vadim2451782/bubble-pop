@@ -25,7 +25,6 @@ export class UI {
     this.el = {
       gameUi: $('gameUi'),
       hudLevel: $('hudLevel'),
-      hudStars: $('hudStars'),
       hudCoins: $('hudCoins'),
       hudCoinChip: $('hudCoinChip'),
       dockShots: $('dockShots'),
@@ -44,6 +43,8 @@ export class UI {
       levelsProgressText: $('levelsProgressText'),
       shopList: $('shopList'),
       menuStars: $('menuStars'),
+      menuStarsWrap: $('menuStarsWrap'),
+      menuStarsDot: $('menuStarsDot'),
       playSub: $('playSub'),
       installHint: $('installHint'),
       installScreen: document.querySelector('[data-screen="install"]'),
@@ -197,6 +198,8 @@ export class UI {
       if (rec.stars > 0) completed += 1;
     }
     this.el.menuStars.textContent = String(stars);
+    this.el.menuStarsWrap.hidden = stars === 0;
+    this.el.menuStarsDot.hidden = stars === 0;
     const unlocked = this.store.unlocked;
     const allDone = completed >= LEVELS.length;
     const label = allDone
@@ -223,7 +226,7 @@ export class UI {
           aria-label="Уровень ${level.id}. ${level.name}. ${rec.stars} из 3 звёзд${unlocked ? '' : '. Закрыт'}">
           ${unlocked ? '' : '<svg class="icon lock-chip"><use href="#i-lock"></use></svg>'}
           <b>${level.id}</b>
-          <div class="stars" data-stars="${rec.stars}" aria-hidden="true">${starsMarkup()}</div>
+          ${rec.stars > 0 ? `<div class="stars" data-stars="${rec.stars}" aria-hidden="true">${starsMarkup()}</div>` : ''}
           <small>${unlocked ? (rec.stars > 0 ? 'пройден' : 'играть') : 'закрыт'}</small>
         </button>`);
     }
@@ -267,8 +270,6 @@ export class UI {
     if (!game) return;
     const level = game.level;
     this.el.hudLevel.textContent = String(level.id);
-    const best = this.store.getLevelRecord(level.id).stars;
-    this.el.hudStars.dataset.stars = String(best);
     this.el.dockShots.textContent = String(game.shots);
     this.el.shotsPill.classList.toggle('is-low', game.shots <= 5);
     this.el.shotsPill.setAttribute('aria-label', `Осталось ходов: ${game.shots}`);
@@ -306,7 +307,7 @@ export class UI {
     const hints = {
       bomb: 'Выберите шарик для взрыва',
       lightning: 'Выберите цвет — молния уберёт его весь',
-      rocket: 'Выберите шарик — ракета сожжёт ряд',
+      rocket: 'Выберите шарик — ракета сожжёт столбец',
     };
     this.el.targetHintText.textContent = hints[type] || 'Выберите шарик';
     this.el.targetHint.hidden = false;

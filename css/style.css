@@ -226,13 +226,13 @@ svg.sprite {
 }
 
 .level-chip {
-  display: grid;
-  grid-template-columns: auto auto;
-  grid-template-areas: "label label" "num stars";
-  align-items: center;
-  column-gap: 7px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
   min-height: 44px;
-  padding: 5px 11px;
+  padding: 5px 12px;
   border-radius: 14px;
   border: 1px solid var(--stroke);
   background: linear-gradient(180deg, rgba(17, 44, 104, 0.68), rgba(6, 19, 50, 0.78));

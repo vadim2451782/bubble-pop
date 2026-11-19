@@ -631,27 +631,8 @@ export class Renderer {
       ctx.fill();
     }
 
-    // Ghost of the bubble at the landing cell.
-    if (trace.snap) {
-      const x = this.layout.cellX(trace.snap.r, trace.snap.c);
-      const y = this.layout.cellY(trace.snap.r);
-      const pulse = 0.85 + 0.15 * Math.sin(this.time * 5);
-      ctx.save();
-      ctx.globalAlpha = 0.5 * active;
-      if (color) {
-        this.drawSpriteAt(color.id, x, y, R * 0.94, 0.5, pulse);
-      } else {
-        this.drawRainbowDisc(x, y, R * 0.94 * pulse, 0.7);
-      }
-      ctx.setLineDash([R * 0.22, R * 0.24]);
-      ctx.lineDashOffset = -this.time * 30;
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.arc(x, y, R * 0.98, 0, TAU);
-      ctx.stroke();
-      ctx.restore();
-    }
+    // Only the dotted trajectory is shown; no ghost bubble at the landing
+    // cell. Players found the ghost looked like the shot teleporting.
   }
 
   drawGrid(view) {

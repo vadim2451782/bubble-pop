@@ -495,12 +495,13 @@ function handleBoosterResult(result, type) {
     renderer.shake(8);
     audio.play('lightning');
   } else if (type === 'rocket') {
-    const rowY = layout.cellY(result.target.r);
-    renderer.addStreak(layout.left, rowY, layout.right, rowY, '#ffd27a', 9, 0.55);
+    const beamX = layout.cellX(result.target.r, result.target.c);
+    renderer.addStreak(beamX, layout.top, beamX, layout.dangerY, '#ffd27a', 9, 0.55);
     for (const cell of result.removed) {
       const x = layout.cellX(cell.r, cell.c);
-      renderer.addParticles(x, rowY, cell.color, 8, 1);
-      renderer.ring(x, rowY, cell.color, R * 1.9);
+      const y = layout.cellY(cell.r);
+      renderer.addParticles(x, y, cell.color, 8, 1);
+      renderer.ring(x, y, cell.color, R * 1.9);
     }
     renderer.shake(9);
     renderer.flash(0.15, '#ffe0a8');

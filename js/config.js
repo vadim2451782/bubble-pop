@@ -47,7 +47,7 @@ export const BOOSTERS = {
   rocket: {
     id: 'rocket',
     name: 'Ракета',
-    desc: 'Сжигает весь горизонтальный ряд с выбранным шариком.',
+    desc: 'Сжигает весь вертикальный столбец с выбранным шариком.',
     price: 80,
     color: '#ffa94d',
   },
@@ -55,15 +55,19 @@ export const BOOSTERS = {
 
 export const BOOSTER_ORDER = ['bomb', 'lightning', 'rainbow', 'rocket'];
 
-/** Scoring rules. */
+/** Scoring rules. Coins are much rarer than bubbles: 1 per 4 popped/fallen,
+ *  and the level-completion bonus is also reduced fourfold. */
 export const SCORE = {
   bubble: 10,
   clusterBonus: 10,
   falling: 15,
   boosterBubble: 5,
-  winBase: 40,
-  winPerStar: 20,
+  winBase: 10,
+  winPerStar: 5,
 };
+
+/** How many bubbles must be cleared to earn one coin. */
+export const BUBBLES_PER_COIN = 4;
 
 export const START_COINS = 150;
 export const START_BOOSTERS = { bomb: 1, lightning: 1, rainbow: 1, rocket: 1 };

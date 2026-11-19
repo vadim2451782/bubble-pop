@@ -56,11 +56,6 @@
         <div class="level-chip" id="levelChip">
           <span class="level-chip__label">Уровень</span>
           <b class="level-chip__num" id="hudLevel">1</b>
-          <div class="stars stars--sm" id="hudStars" data-stars="0" aria-label="Звёзды уровня">
-            <svg class="icon star"><use href="#i-star"></use></svg>
-            <svg class="icon star"><use href="#i-star"></use></svg>
-            <svg class="icon star"><use href="#i-star"></use></svg>
-          </div>
         </div>
         <div class="hud__spacer"></div>
         <div class="coin-chip" id="hudCoinChip" data-action="hudShop" role="button" tabindex="0" title="Монеты и магазин">
@@ -142,8 +137,8 @@
           <p class="tagline">Лопай шарики · собирай звёзды</p>
           <div class="menu-stats">
             <span><b class="js-coins">0</b> монет</span>
-            <span class="menu-stats__dot"></span>
-            <span><b id="menuStars">0</b> звёзд</span>
+            <span class="menu-stats__dot" id="menuStarsDot" hidden></span>
+            <span id="menuStarsWrap" hidden><b id="menuStars">0</b> звёзд</span>
           </div>
         </div>
 
@@ -203,7 +198,7 @@
             <svg class="icon"><use href="#i-coin"></use></svg><span class="js-coins">0</span>
           </div>
         </header>
-        <p class="shop-sub">Бустеры помогают на сложных уровнях. Монеты начисляются за лопнутые шарики и победы.</p>
+        <p class="shop-sub">Бустеры помогают на сложных уровнях. Монеты: 1 за каждые 4 лопнутых шарика плюс бонус за победу.</p>
         <div class="shop-list" id="shopList"></div>
         <p class="screen-note">Купленные бустеры хранятся в инвентаре и доступны на игровом поле.</p>
       </section>
@@ -235,7 +230,7 @@
             </ol>
           </div>
           <div class="settings-block settings-block--row">
-            <div><b>Версия</b><small>Bubble Pop 1.0.1 · PWA</small></div>
+            <div><b>Версия</b><small>Bubble Pop 1.0.2 · PWA</small></div>
             <span class="status-dot" id="offlineStatus"><i></i> офлайн</span>
           </div>
           <button class="btn btn--danger" data-action="reset" type="button">Сбросить прогресс</button>
