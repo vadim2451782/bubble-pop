@@ -75,9 +75,7 @@ export const SAVE_VERSION = 1;
 
 /** Physics / presentation tuning. */
 export const TUNING = {
-  shotSpeed: 1050, // px per second along the traced path
-  bounceLimit: 5,
-  collisionFactor: 0.995, // multiply 2R when testing contact
-  trajectoryBounces: 3,
-  minAngle: 0.1, // radians away from horizontal
+  shotSpeed: 1350, // px per second along the traced path
+  maxTraceSteps: 20000, // safety valve for malformed angles
+  minAngle: 0.2, // radians away from horizontal (~11.5 degrees)
 };

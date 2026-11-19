@@ -16,9 +16,25 @@ export function pathLength(points) {
   return total;
 }
 
-/** Nearest empty cell to `contact`. When a bubble was hit, prefer its empty
- *  neighbours; on a ceiling hit, prefer the top row. */
-export function findSnapCell(grid, layout, contact, hitCell) {
+function cumulativeDistances(points) {
+  const distances = [0];
+  for (let i = 1; i < points.length; i += 1) {
+    distances.push(
+      distances[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y),
+    );
+  }
+  return distances;
+}
+
+/** Nearest legal empty cell to `contact`.
+ *
+ *  - A bubble hit prefers the empty neighbours of the bubble that was hit.
+ *  - A ceiling hit prefers empty cells of the ceiling row.
+ *  - A safety fallback (only if those are all full) picks the nearest empty
+ *    cell that actually touches another bubble, never a random top-row cell.
+ */
+export function findSnapCell(grid, layout, contact, hitCell, options = {}) {
+  const atCeiling = options.ceiling === true;
   let candidates = [];
 
   if (hitCell) {
@@ -27,7 +43,7 @@ export function findSnapCell(grid, layout, contact, hitCell) {
     }
   }
 
-  if (!candidates.length && grid.rows[0]) {
+  if (!candidates.length && atCeiling && grid.rows[0]) {
     grid.rows[0].forEach((_, c) => {
       if (!grid.get(0, c)) candidates.push({ r: 0, c });
     });
@@ -37,7 +53,7 @@ export function findSnapCell(grid, layout, contact, hitCell) {
     for (let r = 0; r < grid.rows.length; r += 1) {
       for (let c = 0; c < grid.rows[r].length; c += 1) {
         if (grid.get(r, c)) continue;
-        if (r === 0 || grid.hasOccupiedNeighbor(r, c)) candidates.push({ r, c });
+        if (grid.hasOccupiedNeighbor(r, c)) candidates.push({ r, c });
       }
     }
   }
@@ -62,13 +78,17 @@ export function findSnapCell(grid, layout, contact, hitCell) {
 
 /**
  * Trace a shot from `start` at `angle` (radians, -PI..0 points upward).
- * Returns the polyline (used for animation), the hit bubble (if any) and the
- * cell where the projectile would land.
+ * The projectile keeps flying and bouncing off side walls until it hits the
+ * ceiling or a bubble. There is intentionally no bounce limit: a real bubble
+ * shooter must never stop mid-air and teleport the bubble to the top row.
+ *
+ * Returns the polyline (used for animation), the hit bubble (if any), the
+ * contact type and the cell where the projectile lands.
  */
 export function traceShot(grid, layout, start, angle, options = {}) {
   const R = layout.radius;
   const step = Math.max(1.2, R * 0.26);
-  const maxBounces = options.maxBounces ?? TUNING.bounceLimit;
+  const maxSteps = options.maxSteps ?? TUNING.maxTraceSteps;
   const left = layout.left;
   const right = layout.left + R * 2 * COLS;
   const ceiling = layout.top;
@@ -80,36 +100,56 @@ export function traceShot(grid, layout, start, angle, options = {}) {
   let bounces = 0;
 
   const points = [{ x, y }];
+  const bounceIndices = [];
 
-  for (let i = 0; i < 8000; i += 1) {
+  const finalize = (contact, contactType, hitCell, snap, exhausted = false) => {
+    const distances = cumulativeDistances(points);
+    return {
+      points,
+      contact,
+      contactType,
+      hitCell,
+      snap,
+      bounces,
+      angle,
+      length: distances[distances.length - 1] || 0,
+      start,
+      exhausted,
+      bouncePoints: bounceIndices.map((index) => ({
+        ...points[index],
+        distance: distances[index],
+      })),
+    };
+  };
+
+  for (let i = 0; i < maxSteps; i += 1) {
     let nx = x + dx * step;
     let ny = y + dy * step;
+    let reflected = false;
 
     if (nx - R < left && dx < 0) {
       nx = left + R;
       dx = -dx;
       bounces += 1;
+      reflected = true;
       points.push({ x: nx, y: ny });
+      bounceIndices.push(points.length - 1);
     } else if (nx + R > right && dx > 0) {
       nx = right - R;
       dx = -dx;
       bounces += 1;
+      reflected = true;
       points.push({ x: nx, y: ny });
+      bounceIndices.push(points.length - 1);
     }
 
     if (ny - R <= ceiling) {
-      const contact = { x: Math.min(right - R, Math.max(left + R, nx)), y: ceiling + R * 0.98 };
-      points.push(contact);
-      return {
-        points,
-        contact,
-        hitCell: null,
-        snap: findSnapCell(grid, layout, contact, null),
-        bounces,
-        angle,
-        length: pathLength(points),
-        start,
+      const contact = {
+        x: Math.min(right - R, Math.max(left + R, nx)),
+        y: ceiling + R * 0.98,
       };
+      points.push(contact);
+      return finalize(contact, 'ceiling', null, findSnapCell(grid, layout, contact, null, { ceiling: true }));
     }
 
     let hit = null;
@@ -135,37 +175,23 @@ export function traceShot(grid, layout, start, angle, options = {}) {
         y: by + (vy / distance) * R * 1.99,
       };
       points.push(contact);
-      return {
-        points,
+      return finalize(
         contact,
-        hitCell: { r: hit.r, c: hit.c },
-        snap: findSnapCell(grid, layout, contact, hit),
-        bounces,
-        angle,
-        length: pathLength(points),
-        start,
-      };
+        'bubble',
+        { r: hit.r, c: hit.c },
+        findSnapCell(grid, layout, contact, hit, { ceiling: false }),
+      );
     }
 
     x = nx;
     y = ny;
-    points.push({ x, y });
-
-    if (bounces > maxBounces) break;
-    if (y < ceiling - R * 3) break;
+    if (!reflected) points.push({ x, y });
   }
 
-  const contact = { x, y };
-  return {
-    points,
-    contact,
-    hitCell: null,
-    snap: findSnapCell(grid, layout, contact, null),
-    bounces,
-    angle,
-    length: pathLength(points),
-    start,
-  };
+  // Defensive fallback for a malformed angle that never reaches the board.
+  // Never invent a snap cell here: that is exactly what used to teleport the
+  // projectile to the top after too many wall bounces.
+  return finalize({ x, y }, 'none', null, null, true);
 }
 
 /** Find the occupied bubble under a canvas point. */

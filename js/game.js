@@ -5,7 +5,7 @@
 import { RAINBOW, SCORE } from './config.js';
 import { BubbleGrid } from './grid.js';
 import { shooterMuzzle } from './layout.js';
-import { traceShot } from './physics.js';
+import { clampAimAngle, traceShot } from './physics.js';
 
 export class Game {
   constructor({ level, layout, rng = Math.random }) {
@@ -66,9 +66,11 @@ export class Game {
   /** Build the trajectory for the current bubble. Does not consume the shot. */
   createShot(angle) {
     if (this.phase !== 'aim') return null;
-    const start = shooterMuzzle(this.layout, angle);
+    const requested = Number.isFinite(angle) ? angle : -Math.PI / 2;
+    const aim = clampAimAngle(requested);
+    const start = shooterMuzzle(this.layout, aim);
     const rainbow = this.isRainbow();
-    const trace = traceShot(this.grid, this.layout, start, angle);
+    const trace = traceShot(this.grid, this.layout, start, aim);
     let shotColor = this.current;
     if (rainbow) {
       if (trace.hitCell) {
@@ -83,7 +85,7 @@ export class Game {
     }
     trace.rainbow = rainbow;
     trace.shotColor = shotColor;
-    trace.angle = angle;
+    trace.angle = aim;
     return trace;
   }
 

@@ -639,7 +639,7 @@ export class Renderer {
       ctx.save();
       ctx.globalAlpha = 0.5 * active;
       if (color) {
-        this.drawSpriteAt(color.id, x, y, R * 0.94 * pulse, 0.5, 0.94 * pulse);
+        this.drawSpriteAt(color.id, x, y, R * 0.94, 0.5, pulse);
       } else {
         this.drawRainbowDisc(x, y, R * 0.94 * pulse, 0.7);
       }

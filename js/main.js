@@ -33,6 +33,7 @@ let currentMetaBack = 'menu';
 let currentSettingsBack = 'menu';
 let resizeQueued = false;
 let activePointerId = null;
+let lastBounceSoundAt = 0;
 
 function makeView() {
   return {
@@ -70,11 +71,22 @@ function updateGame(dt) {
   if (view.flying) {
     if (!paused && !resultScreenOpen) {
       const trace = view.flying.trace;
-      view.flying.progress += (TUNING.shotSpeed * dt) / Math.max(1, trace.length);
-      if (view.flying.progress >= 1) {
-        view.flying.progress = 1;
-        finishFlight();
+      const traceLength = Math.max(1, trace.length);
+      const previous = view.flying.progress;
+      const next = Math.min(1, previous + (TUNING.shotSpeed * dt) / traceLength);
+      const sparkColor = trace.rainbow ? 'purple' : trace.shotColor || 'blue';
+      for (const bounce of trace.bouncePoints || []) {
+        const at = bounce.distance / traceLength;
+        if (at > previous && at <= next) {
+          renderer.addParticles(bounce.x, bounce.y, sparkColor, 4, 0.4);
+          if (performance.now() - lastBounceSoundAt > 60) {
+            audio.play('bounce');
+            lastBounceSoundAt = performance.now();
+          }
+        }
       }
+      view.flying.progress = next;
+      if (view.flying.progress >= 1) finishFlight();
     }
     return;
   }
@@ -414,6 +426,10 @@ function onBoosterClick(type) {
 
   if (type === 'rainbow') {
     if (!game.canUseBooster('rainbow')) return;
+    if (game.isRainbow()) {
+      ui.toast('Радужный шар уже заряжен', 1200);
+      return;
+    }
     store.consumeBooster('rainbow');
     game.useBooster('rainbow');
     view.rainbow = true;
