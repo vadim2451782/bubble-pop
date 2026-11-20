@@ -45,6 +45,7 @@ function makeView() {
     hoverCell: null,
     nextHovered: false,
     rainbow: false,
+    rocket: false,
   };
 }
 
@@ -186,6 +187,7 @@ function refreshAim() {
   view.aimAngle = clampAimAngle(view.aimAngle);
   view.aimTrace = game.createShot(view.aimAngle);
   view.rainbow = !!(game && game.isRainbow());
+  view.rocket = !!(game && game.isRocket());
 }
 
 function finishFlight() {
@@ -202,7 +204,26 @@ function finishFlight() {
 
 function handleShotResult(result, trace) {
   const R = layout.radius;
-  if (result.popped.length) {
+  if (result.rocket) {
+    if (result.rocketTarget && result.removed.length) {
+      const beamX = layout.cellX(result.rocketTarget.r, result.rocketTarget.c);
+      renderer.addStreak(beamX, layout.top, beamX, layout.dangerY, '#ffd27a', 9, 0.55);
+      let sx = 0;
+      let sy = 0;
+      for (const cell of result.removed) {
+        const x = layout.cellX(cell.r, cell.c);
+        const y = layout.cellY(cell.r);
+        sx += x;
+        sy += y;
+        renderer.addParticles(x, y, cell.color, 8, 1);
+        renderer.ring(x, y, cell.color, R * 1.9);
+      }
+      renderer.addFloater(sx / result.removed.length, sy / result.removed.length, `+${result.scoreGain}`);
+    }
+    renderer.shake(9);
+    renderer.flash(0.15, '#ffe0a8');
+    audio.play('rocket');
+  } else if (result.popped.length) {
     renderer.popCells(result.popped, result.shotColor);
     const average = result.popped.reduce(
       (acc, cell) => ({
@@ -419,8 +440,34 @@ function onBoosterClick(type) {
     return;
   }
   if (store.boosterCount(type) <= 0) {
-    ui.toast(`${BOOSTERS[type].name}: купите в магазине`);
+    cancelBooster();
+    openShop('game');
+    return;
+  }
+
+  if (game.isRocket() && type !== 'rocket') {
+    ui.toast('Сначала выстрелите ракетой', 1200);
+    return;
+  }
+
+  if (type === 'rocket') {
+    if (game.isRocket()) {
+      ui.toast('Ракета уже заряжена', 1200);
+      return;
+    }
+    if (game.isRainbow()) {
+      ui.toast('Сначала выстрелите радужным шаром', 1200);
+      return;
+    }
+    if (!game.armRocket()) return;
+    store.consumeBooster('rocket');
+    cancelBooster();
+    view.rocket = true;
+    ui.syncHud(game);
+    ui.syncBoosters();
+    ui.toast('Ракета заряжена!', 1200);
     audio.play('click');
+    refreshAim();
     return;
   }
 
@@ -632,9 +679,8 @@ function handlePointerUp(event) {
   view.aimAngle = angleFromPoint(point);
   refreshAim();
 
-  // Release below the dashed line = cancel. Release above it = shoot.
+  // Release below the dashed line cancels; release above it shoots.
   if (point.y >= layout.dangerY) {
-    ui.toast('Отпустите выше линии, чтобы выстрелить', 1100);
     return;
   }
   shoot();

@@ -1,5 +1,5 @@
 /* Bubble Pop service worker — cache the whole game for offline play. */
-const VERSION = '1.0.11';
+const VERSION = '1.0.12';
 const CACHE = `bubble-pop-${VERSION}`;
 const ASSETS = [
   './',

@@ -599,8 +599,13 @@ export class Renderer {
 
     const ctx = this.ctx;
     const R = this.layout.radius;
+    const rocket = game.isRocket();
     const colorId = view.rainbow ? RAINBOW : game.current;
-    const color = colorId === RAINBOW ? null : COLOR_BY_ID[colorId];
+    const color = rocket
+      ? { light: '#ffe0a8', base: '#ff9a3d' }
+      : colorId === RAINBOW
+        ? null
+        : COLOR_BY_ID[colorId];
     const active = view.aiming ? 1 : 0.62;
 
     // Thin guiding line.
@@ -680,6 +685,77 @@ export class Renderer {
     }
   }
 
+  drawRocketAt(x, y, R, angle = -Math.PI / 2, alpha = 1) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle + Math.PI / 2);
+    ctx.globalAlpha *= alpha;
+    ctx.shadowColor = 'rgba(255, 164, 63, 0.8)';
+    ctx.shadowBlur = R * 0.8;
+
+    // Flame.
+    const flicker = 0.82 + Math.sin(this.time * 24) * 0.18;
+    const flame = ctx.createLinearGradient(0, R * 0.55, 0, R * 1.7);
+    flame.addColorStop(0, 'rgba(255, 240, 160, 0.95)');
+    flame.addColorStop(0.45, 'rgba(255, 151, 44, 0.9)');
+    flame.addColorStop(1, 'rgba(255, 74, 38, 0)');
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.24, R * 0.6);
+    ctx.quadraticCurveTo(-R * 0.42, R * 1.05, 0, R * (1.25 + flicker * 0.4));
+    ctx.quadraticCurveTo(R * 0.42, R * 1.05, R * 0.24, R * 0.6);
+    ctx.closePath();
+    ctx.fillStyle = flame;
+    ctx.fill();
+
+    // Fins.
+    ctx.fillStyle = '#ff7a2f';
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.32, R * 0.28);
+    ctx.lineTo(-R * 0.78, R * 0.86);
+    ctx.lineTo(-R * 0.3, R * 0.78);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(R * 0.32, R * 0.28);
+    ctx.lineTo(R * 0.78, R * 0.86);
+    ctx.lineTo(R * 0.3, R * 0.78);
+    ctx.closePath();
+    ctx.fill();
+
+    // Body.
+    const body = ctx.createLinearGradient(-R * 0.4, 0, R * 0.4, 0);
+    body.addColorStop(0, '#ffe6a8');
+    body.addColorStop(0.4, '#ffbd63');
+    body.addColorStop(1, '#e96a28');
+    roundRect(ctx, -R * 0.34, -R * 0.82, R * 0.68, R * 1.56, R * 0.32);
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 246, 212, 0.7)';
+    ctx.lineWidth = Math.max(1, R * 0.07);
+    ctx.stroke();
+
+    // Nose cone.
+    ctx.beginPath();
+    ctx.moveTo(0, -R * 1.18);
+    ctx.lineTo(R * 0.34, -R * 0.72);
+    ctx.lineTo(-R * 0.34, -R * 0.72);
+    ctx.closePath();
+    ctx.fillStyle = '#ffd27a';
+    ctx.fill();
+
+    // Window.
+    ctx.beginPath();
+    ctx.arc(0, -R * 0.12, R * 0.17, 0, TAU);
+    ctx.fillStyle = '#5fc7ff';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.lineWidth = Math.max(1, R * 0.05);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   drawProjectile(view) {
     if (!view.flying) return;
     const { trace, progress } = view.flying;
@@ -688,6 +764,28 @@ export class Renderer {
     const distance = trace.length * clamp(progress, 0, 1);
     const head = pointAt(trace.points, distance);
     const rainbow = trace.rainbow;
+
+    if (trace.rocket) {
+      const before = pointAt(trace.points, Math.max(0, distance - R * 0.8));
+      const after = pointAt(trace.points, Math.min(trace.length, distance + R * 0.8));
+      const tangent = Math.atan2(after.y - before.y, after.x - before.x) || trace.angle;
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 1; i <= 5; i += 1) {
+        const d = distance - i * R * 0.6;
+        if (d <= 0) break;
+        const point = pointAt(trace.points, d);
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, R * (0.22 - i * 0.025), 0, TAU);
+        ctx.fillStyle = `rgba(255, 170, 70, ${0.28 - i * 0.04})`;
+        ctx.fill();
+      }
+      ctx.restore();
+      this.drawRocketAt(head.x, head.y, R, tangent, 1);
+      return;
+    }
+
     const colorId = rainbow ? RAINBOW : trace.shotColor;
 
     // Motion trail.
@@ -766,8 +864,13 @@ export class Renderer {
     const muzzle = this.getMuzzle(angle);
     const pivotX = layout.shooterX;
     const pivotY = layout.shooterY + R * 0.35;
+    const rocket = !!this.game?.isRocket();
     const colorId = view.rainbow ? RAINBOW : this.game?.current;
-    const color = colorId && colorId !== RAINBOW ? COLOR_BY_ID[colorId] : null;
+    const color = rocket
+      ? { base: '#ff9a3d', light: '#ffe0a8' }
+      : colorId && colorId !== RAINBOW
+        ? COLOR_BY_ID[colorId]
+        : null;
 
     // Soft glow under the cannon.
     const underGlow = ctx.createRadialGradient(pivotX, pivotY + R * 0.2, 2, pivotX, pivotY + R * 0.2, R * 3.4);
@@ -844,10 +947,12 @@ export class Renderer {
     ctx.fill();
     ctx.restore();
 
-    // Loaded bubble / rainbow.
+    // Loaded bubble / rainbow / rocket.
     if (!view.flying && this.game?.phase === 'aim') {
       const pulse = 1 + Math.sin(this.time * 4) * 0.012;
-      if (colorId === RAINBOW) {
+      if (rocket) {
+        this.drawRocketAt(muzzle.x, muzzle.y, R * pulse, angle, 1);
+      } else if (colorId === RAINBOW) {
         ctx.save();
         ctx.shadowColor = `hsla(${(this.time * 120) % 360}, 95%, 70%, 0.85)`;
         ctx.shadowBlur = R * 1.1;

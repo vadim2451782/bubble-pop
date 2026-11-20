@@ -333,12 +333,21 @@ export class UI {
       if (!button) continue;
       const count = this.store.boosterCount(id);
       const badge = button.querySelector('.booster__count');
-      if (badge) badge.textContent = String(count);
+      if (badge) {
+        badge.classList.toggle('is-cart', count <= 0);
+        if (count <= 0) {
+          badge.innerHTML = '<svg class="icon"><use href="#i-shop"></use></svg><b>+</b>';
+        } else {
+          badge.textContent = String(count);
+        }
+      }
       button.classList.toggle('is-empty', count <= 0);
       button.disabled = false;
       button.setAttribute(
         'aria-label',
-        `${BOOSTERS[id].name}. В наличии: ${count}. ${BOOSTERS[id].desc}`,
+        count <= 0
+          ? `${BOOSTERS[id].name}: нет в наличии. Открыть магазин.`
+          : `${BOOSTERS[id].name}. В наличии: ${count}. ${BOOSTERS[id].desc}`,
       );
     }
   }

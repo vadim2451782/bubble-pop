@@ -617,12 +617,35 @@ svg.sprite {
 }
 
 .booster.is-empty {
-  opacity: 0.55;
+  opacity: 0.9;
 }
 
 .booster.is-empty .booster__count {
-  background: rgba(255, 255, 255, 0.14);
-  color: #b9cff4;
+  background: linear-gradient(180deg, #ffe38a, #ffad21);
+  color: #4a2400;
+}
+
+.booster__count.is-cart {
+  width: 32px;
+  height: 23px;
+  min-width: 32px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.booster__count.is-cart .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.booster__count.is-cart b {
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  margin-left: 0;
 }
 
 .booster__icon {

@@ -23,6 +23,7 @@ export class Game {
     this.coinBubbles = 0;
     this.phase = 'aim';
     this.loseReason = null;
+    this.rocket = false;
     this.current = this.pickColor();
     this.next = this.pickColor();
     this.stats = { popped: 0, falling: 0, shots: 0, boosters: 0, bounces: 0 };
@@ -71,6 +72,17 @@ export class Game {
     return this.current === RAINBOW;
   }
 
+  isRocket() {
+    return this.rocket === true;
+  }
+
+  /** Queue the rocket as the next fired projectile. */
+  armRocket() {
+    if (this.phase !== 'aim' || this.rocket) return false;
+    this.rocket = true;
+    return true;
+  }
+
   swap() {
     if (this.phase !== 'aim' || !this.next) return false;
     const tmp = this.current;
@@ -85,7 +97,8 @@ export class Game {
     const requested = Number.isFinite(angle) ? angle : -Math.PI / 2;
     const aim = clampAimAngle(requested);
     const start = shooterMuzzle(this.layout, aim);
-    const rainbow = this.isRainbow();
+    const rocket = this.isRocket();
+    const rainbow = !rocket && this.isRainbow();
     const trace = traceShot(this.grid, this.layout, start, aim);
     let shotColor = this.current;
     if (rainbow) {
@@ -100,6 +113,7 @@ export class Game {
       }
     }
     trace.rainbow = rainbow;
+    trace.rocket = rocket;
     trace.shotColor = shotColor;
     trace.angle = aim;
     return trace;
@@ -125,6 +139,9 @@ export class Game {
       placed: null,
       popped: [],
       falling: [],
+      removed: [],
+      rocket: false,
+      rocketTarget: null,
       shotColor,
       rainbow: !!trace.rainbow,
       bounces: trace.bounces || 0,
@@ -133,7 +150,30 @@ export class Game {
       phase: 'aim',
     };
 
-    if (trace.snap) {
+    if (this.isRocket()) {
+      // Rocket is fired like a normal projectile, but instead of attaching it
+      // clears a vertical column through the impact cell.
+      this.rocket = false;
+      const target = trace.hitCell || trace.snap;
+      result.rocket = true;
+      result.rocketTarget = target ? { r: target.r, c: target.c } : null;
+      if (target) {
+        const removed = this.rocketColumnCells(target);
+        result.removed = removed.map(({ r, c }) => ({
+          r,
+          c,
+          color: this.grid.get(r, c),
+        }));
+        this.grid.removeCells(removed);
+        const fallingCells = this.grid.findFloating();
+        result.falling = fallingCells.map(({ r, c }) => ({
+          r,
+          c,
+          color: this.grid.get(r, c),
+        }));
+        this.grid.removeCells(fallingCells);
+      }
+    } else if (trace.snap) {
       const { r, c } = trace.snap;
       if (this.grid.add(r, c, shotColor)) {
         result.placed = { r, c, color: shotColor };
@@ -153,7 +193,7 @@ export class Game {
       }
     }
 
-    const popped = result.popped.length;
+    const popped = result.popped.length + result.removed.length;
     const falling = result.falling.length;
     const gain =
       popped * SCORE.bubble +
@@ -187,6 +227,31 @@ export class Game {
 
   canUseBooster(type) {
     return this.phase === 'aim' && ['bomb', 'lightning', 'rainbow', 'rocket'].includes(type);
+  }
+
+  /** One nearest occupied cell per row along a vertical beam. */
+  rocketColumnCells(cell) {
+    const beamX = this.layout.cellX(cell.r, cell.c);
+    const removed = [];
+    for (let r = 0; r < this.grid.rows.length; r += 1) {
+      let bestC = -1;
+      let bestDistance = Infinity;
+      for (let c = 0; c < this.grid.rows[r].length; c += 1) {
+        const distance = Math.abs(this.layout.cellX(r, c) - beamX);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestC = c;
+        }
+      }
+      if (
+        bestC >= 0 &&
+        bestDistance <= this.layout.radius * 1.01 &&
+        this.grid.get(r, bestC)
+      ) {
+        removed.push({ r, c: bestC });
+      }
+    }
+    return removed;
   }
 
   /**
@@ -225,28 +290,7 @@ export class Game {
         if (color === target) removed.push({ r, c });
       });
     } else if (type === 'rocket') {
-      // Vertical beam through the selected bubble: one nearest cell in every
-      // row (the hex rows are staggered, so this is the closest thing to a
-      // straight vertical column).
-      const beamX = this.layout.cellX(cell.r, cell.c);
-      for (let r = 0; r < this.grid.rows.length; r += 1) {
-        let bestC = -1;
-        let bestDistance = Infinity;
-        for (let c = 0; c < this.grid.rows[r].length; c += 1) {
-          const distance = Math.abs(this.layout.cellX(r, c) - beamX);
-          if (distance < bestDistance) {
-            bestDistance = distance;
-            bestC = c;
-          }
-        }
-        if (
-          bestC >= 0 &&
-          bestDistance <= this.layout.radius * 1.01 &&
-          this.grid.get(r, bestC)
-        ) {
-          removed.push({ r, c: bestC });
-        }
-      }
+      removed = this.rocketColumnCells(cell);
     } else {
       return null;
     }
@@ -330,6 +374,7 @@ export class Game {
       current: this.current,
       next: this.next,
       rainbow: this.isRainbow(),
+      rocket: this.isRocket(),
       remaining: this.grid.count(),
       total: this.startBubbles,
       progress: this.startBubbles
