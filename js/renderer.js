@@ -935,7 +935,7 @@ export class Renderer {
   drawBoosterTarget(view) {
     if (!view.boosterMode) return;
     const ctx = this.ctx;
-    const cell = view.hoverCell;
+    const cell = view.selectedCell || view.hoverCell;
     if (!cell) return;
     const x = this.layout.cellX(cell.r, cell.c);
     const y = this.layout.cellY(cell.r);

@@ -37,6 +37,7 @@ export class UI {
       targetHint: $('targetHint'),
       targetHintText: $('targetHintText'),
       cancelBooster: $('btnCancelBooster'),
+      confirmBooster: $('btnConfirmBooster'),
       toast: $('toast'),
       levelGrid: $('levelGrid'),
       levelsProgressFill: $('levelsProgressFill'),
@@ -356,12 +357,19 @@ export class UI {
       rocket: 'Выберите шарик — ракета сожжёт столбец',
     };
     this.el.targetHintText.textContent = hints[type] || 'Выберите шарик';
+    this.el.confirmBooster.hidden = true;
     this.el.targetHint.hidden = false;
     this.setBoosterActive(type);
   }
 
+  showTargetSelected() {
+    this.el.targetHintText.textContent = 'Шарик выбран';
+    this.el.confirmBooster.hidden = false;
+  }
+
   hideTargetHint() {
     this.el.targetHint.hidden = true;
+    this.el.confirmBooster.hidden = true;
     this.setBoosterActive(null);
   }
 
