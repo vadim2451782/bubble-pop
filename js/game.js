@@ -52,6 +52,21 @@ export class Game {
     return entries[entries.length - 1][0];
   }
 
+  /** If the board no longer contains the colour loaded or queued, replace it
+   *  with a colour that is actually present. Keeps the shooter relevant when a
+   *  level is reduced to one or two colours. */
+  refreshShooterColors() {
+    const available = new Set();
+    this.grid.forEachOccupied((color) => available.add(color));
+    if (!available.size) return;
+    if (this.current !== RAINBOW && !available.has(this.current)) {
+      this.current = this.pickColor();
+    }
+    if (this.next !== RAINBOW && !available.has(this.next)) {
+      this.next = this.pickColor();
+    }
+  }
+
   isRainbow() {
     return this.current === RAINBOW;
   }
@@ -154,6 +169,7 @@ export class Game {
 
     this.current = this.next;
     this.next = this.pickColor();
+    this.refreshShooterColors();
     this.lastTrace = trace;
     this.lastResult = result;
     this.phase = this.evaluatePhase();
@@ -252,6 +268,7 @@ export class Game {
     this.stats.boosters += 1;
     this.stats.popped += removed.length;
     this.stats.falling += falling.length;
+    this.refreshShooterColors();
 
     this.phase = this.evaluatePhase();
     return {

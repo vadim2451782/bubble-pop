@@ -144,12 +144,11 @@ export function traceShot(grid, layout, start, angle, options = {}) {
   const points = [{ x, y }];
   const bounceIndices = [];
 
-  const finalize = (contact, contactType, hitCell, snap, exhausted = false, aimPoint = contact) => {
+  const finalize = (contact, contactType, hitCell, snap, exhausted = false) => {
     const distances = cumulativeDistances(points);
     return {
       points,
       contact,
-      aimPoint,
       contactType,
       hitCell,
       snap,
@@ -208,25 +207,12 @@ export function traceShot(grid, layout, start, angle, options = {}) {
 
     if (hit) {
       const contact = { x: hit.x, y: hit.y };
-      const bx = layout.cellX(hit.r, hit.c);
-      const by = layout.cellY(hit.r);
-      const dxs = contact.x - bx;
-      const dys = contact.y - by;
-      const distance = Math.hypot(dxs, dys) || 1;
-      // Where the projectile's surface meets the visual surface of the hit
-      // bubble; used only to draw a complete aim line.
-      const aimPoint = {
-        x: bx + (dxs / distance) * R,
-        y: by + (dys / distance) * R,
-      };
       points.push(contact);
       return finalize(
         contact,
         'bubble',
         { r: hit.r, c: hit.c },
         findSnapCell(grid, layout, contact, hit, { ceiling: false }),
-        false,
-        aimPoint,
       );
     }
 
@@ -238,8 +224,6 @@ export function traceShot(grid, layout, start, angle, options = {}) {
         'ceiling',
         null,
         findSnapCell(grid, layout, contact, null, { ceiling: true }),
-        false,
-        { x: nx, y: ceiling },
       );
     }
 
