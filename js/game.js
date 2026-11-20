@@ -292,7 +292,7 @@ export class Game {
     const lowest = this.grid.lowestRow();
     if (lowest >= 0) {
       const bottom = this.layout.cellY(lowest) + this.layout.radius;
-      if (bottom > this.layout.dangerY + 0.5) {
+      if (bottom >= this.layout.dangerY - 0.5) {
         this.loseReason = 'overflow';
         return 'lost';
       }

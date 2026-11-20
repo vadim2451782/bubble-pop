@@ -25,9 +25,12 @@ export function createLayout(fieldWidth, fieldHeight, levelRows = 4) {
   const shooterY = height - shooterZone * 0.56;
   const dangerY = shooterY - radius * 2.15;
 
+  // Keep one row below the danger line: this lets a bubble actually reach the
+  // line (and trigger the overflow loss) instead of the grid silently ending
+  // one row too early.
   const maxRows = Math.max(
     levelRows,
-    Math.floor((dangerY - top - radius * 2) / rowHeight) + 1,
+    Math.floor((dangerY - top - radius * 2) / rowHeight) + 2,
   );
 
   const boardLeft = (width - radius * 2 * COLS) / 2;

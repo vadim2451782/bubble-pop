@@ -343,7 +343,7 @@ export class UI {
     const overflow = reason === 'overflow';
     this.el.loseTitle.textContent = overflow ? 'Поле переполнено' : 'Ходы закончились';
     this.el.loseText.textContent = overflow
-      ? 'Шарики добрались до пушки. Попробуйте другой маршрут — или возьмите бустер.'
+      ? 'Шарики коснулись нижней границы. Попробуйте другой маршрут — или возьмите бустер.'
       : 'Шарики остались на поле. Попробуйте ещё раз — или возьмите бустер.';
     this.el.loseScore.textContent = String(game.score);
     this.el.loseCoins.textContent = `+${game.coinsEarned}`;
