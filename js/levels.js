@@ -5,6 +5,7 @@
  */
 import { COLS, COLORS, MAX_LEVEL } from './config.js';
 import { connectPattern } from './grid.js';
+import { SOLVE_TURNS } from './level-audit.js';
 
 const ROW_WIDTH = (r) => (r % 2 === 0 ? COLS : COLS - 1);
 const MID = (w) => (w - 1) / 2;
@@ -197,7 +198,8 @@ for (let i = SPECS.length; i < 100; i += 1) {
 
 function buildLevel(spec, index) {
   const id = index + 1;
-  const seed = id * 7919 + 12345;
+  const seedId = spec.seedId ?? id;
+  const seed = seedId * 7919 + 12345;
   const shape = SHAPES[spec.shape] || SHAPES.full;
   const colorOf = COLOR_STYLES[spec.style] || COLOR_STYLES.checker;
 
@@ -230,23 +232,63 @@ function buildLevel(spec, index) {
   }
 
   const totalBubbles = rows.reduce((n, row) => n + [...row].filter((ch) => ch !== '.').length, 0);
-  const shots = Math.max(spec.shots, Math.ceil(totalBubbles * 0.45) + 6);
+  const shots = Math.max(spec.shots, Math.ceil(totalBubbles * 0.7) + 30);
   const palette = COLORS.slice(0, spec.colors).map((c) => c.id);
 
   return {
     id,
-    name: spec.name,
+    name: spec.finalName || spec.name,
     rows,
     colors: spec.colors,
     palette,
     shots,
     totalBubbles,
     seed,
+    seedId,
+    difficulty: spec.difficulty ?? 0,
     hint: `${totalBubbles} шариков · ${shots} ходов`,
   };
 }
 
-export const LEVELS = SPECS.map(buildLevel);
+// Give every spec a stable pattern seed before anything is reordered.
+SPECS.forEach((spec, index) => {
+  if (!spec.seedId) spec.seedId = index + 1;
+});
+
+// Draft levels are only used to estimate structural difficulty. The final
+// catalogue is rebuilt in ascending difficulty with the same seeds, so the
+// patterns do not change.
+const DRAFT = SPECS.map((spec, index) => buildLevel(spec, index));
+const RANKED = DRAFT.map((level, index) => ({
+  spec: SPECS[index],
+  level,
+  difficulty:
+    level.totalBubbles * 0.55 +
+    level.colors * 7 +
+    level.rows.length * 2 +
+    (level.totalBubbles / Math.max(1, level.rows.length * 10.5)) * 30 -
+    level.shots * 0.25,
+}))
+  .sort((a, b) => a.difficulty - b.difficulty || a.spec.seedId - b.spec.seedId)
+  .map((entry, index) => {
+    const world = Math.floor(index / 10);
+    return {
+      ...entry.spec,
+      seedId: entry.spec.seedId,
+      finalName: `${WORLDS[world].name} ${index + 1}`,
+      difficulty: Math.round(entry.difficulty * 100) / 100,
+    };
+  });
+
+export const LEVELS = RANKED.map((spec, index) => {
+  const level = buildLevel(spec, index);
+  const solveTurns = SOLVE_TURNS[level.id] || 0;
+  if (solveTurns) {
+    level.shots = Math.max(level.shots, solveTurns + 10);
+    level.hint = `${level.totalBubbles} шариков · ${level.shots} ходов`;
+  }
+  return level;
+});
 
 export function getLevel(id) {
   const level = LEVELS.find((l) => l.id === id) || LEVELS[0];

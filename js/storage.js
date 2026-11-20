@@ -8,12 +8,15 @@ import {
   BOOSTER_ORDER,
   STORAGE_KEY,
   SAVE_VERSION,
+  CATALOG_VERSION,
   MAX_LEVEL,
 } from './config.js';
+import { LEVELS } from './levels.js';
 
 export function createDefaultState() {
   return {
     version: SAVE_VERSION,
+    catalogVersion: CATALOG_VERSION,
     coins: START_COINS,
     boosters: { ...START_BOOSTERS },
     unlocked: 1,
@@ -74,13 +77,31 @@ export class Store {
     }
 
     if (parsed.levels && typeof parsed.levels === 'object') {
-      for (let id = 1; id <= MAX_LEVEL; id += 1) {
-        const rec = parsed.levels[id];
+      const sourceToNew = new Map(LEVELS.map((level) => [level.seedId, level.id]));
+      const shouldRemap = int(parsed.catalogVersion, 0, 0, 999) !== CATALOG_VERSION;
+      for (let oldId = 1; oldId <= MAX_LEVEL; oldId += 1) {
+        const rec = parsed.levels[oldId];
         if (!rec || typeof rec !== 'object') continue;
+        const id = shouldRemap ? sourceToNew.get(oldId) : oldId;
+        if (!id) continue;
         state.levels[id] = {
           stars: int(rec.stars, 0, 0, 3),
           score: int(rec.score, 0, 0),
         };
+      }
+
+      // The catalogue was reordered (or is from the 24-level build). Map the
+      // old unlocked/current ids through the stable pattern seed instead of
+      // letting stars land on unrelated levels.
+      if (shouldRemap) {
+        const oldUnlocked = int(parsed.unlocked, 1, 1, MAX_LEVEL);
+        let unlocked = 1;
+        for (const [sourceId, id] of sourceToNew.entries()) {
+          if (sourceId <= oldUnlocked) unlocked = Math.max(unlocked, id);
+        }
+        state.unlocked = Math.min(MAX_LEVEL, Math.max(1, unlocked));
+        const oldCurrent = int(parsed.currentLevel, oldUnlocked, 1, MAX_LEVEL);
+        state.currentLevel = sourceToNew.get(oldCurrent) || state.unlocked;
       }
     }
     return state;

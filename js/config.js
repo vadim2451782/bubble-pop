@@ -76,6 +76,9 @@ export const MAX_LEVEL = 100;
 
 export const STORAGE_KEY = 'bubblepop.save.v1';
 export const SAVE_VERSION = 1;
+/** Bumped when the 100-level catalogue is reordered, so old star records can
+ *  be remapped by their stable source id instead of landing on other levels. */
+export const CATALOG_VERSION = 2;
 
 /** Physics / presentation tuning. */
 export const TUNING = {
