@@ -453,9 +453,7 @@ svg.sprite {
   color: #ffe7a1;
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.25;
-  max-width: calc(100% - 24px);
-  white-space: normal;
+  white-space: nowrap;
   box-shadow: 0 10px 24px rgba(0, 6, 24, 0.45), 0 0 0 4px rgba(255, 200, 70, 0.06);
   animation: hintIn 0.25s ease both;
 }
@@ -469,8 +467,7 @@ svg.sprite {
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
-.target-hint__cancel,
-.target-hint__confirm {
+.target-hint__cancel {
   width: 26px;
   height: 26px;
   display: grid;
@@ -483,18 +480,7 @@ svg.sprite {
   cursor: pointer;
 }
 
-.target-hint__confirm {
-  background: linear-gradient(180deg, #ffe58a, #ffc233);
-  color: #3a2500;
-  box-shadow: 0 2px 8px rgba(255, 190, 40, 0.3);
-}
-
-.target-hint__confirm[hidden] {
-  display: none;
-}
-
-.target-hint__cancel .icon,
-.target-hint__confirm .icon {
+.target-hint__cancel .icon {
   width: 14px;
   height: 14px;
 }

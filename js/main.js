@@ -42,7 +42,6 @@ function makeView() {
     aimTrace: null,
     flying: null,
     boosterMode: null,
-    selectedCell: null,
     hoverCell: null,
     nextHovered: false,
     rainbow: false,
@@ -406,7 +405,6 @@ function buyBooster(id) {
 
 function cancelBooster() {
   view.boosterMode = null;
-  view.selectedCell = null;
   view.hoverCell = null;
   ui.hideTargetHint();
 }
@@ -578,16 +576,8 @@ function handlePointerDown(event) {
 
   if (view.boosterMode) {
     const cell = bubbleAtPoint(game.grid, layout, point.x, point.y, 1.08);
-    if (cell) {
-      view.selectedCell = cell;
-      view.hoverCell = cell;
-      ui.showTargetSelected();
-      audio.play('click');
-    } else {
-      view.selectedCell = null;
-      ui.showTargetHint(view.boosterMode);
-      ui.toast('Нажмите на шарик');
-    }
+    if (cell) applyBoosterAt(cell);
+    else ui.toast('Нажмите на шарик');
     return;
   }
 
@@ -641,6 +631,12 @@ function handlePointerUp(event) {
   activePointerId = null;
   view.aimAngle = angleFromPoint(point);
   refreshAim();
+
+  // Release below the dashed line = cancel. Release above it = shoot.
+  if (point.y >= layout.dangerY) {
+    ui.toast('Отпустите выше линии, чтобы выстрелить', 1100);
+    return;
+  }
   shoot();
 }
 
@@ -783,10 +779,6 @@ document.getElementById('toggleMusic').addEventListener('click', toggleMusic);
 document.getElementById('btnCancelBooster').addEventListener('click', () => {
   cancelBooster();
   ui.toast('Бустер отменён', 1100);
-});
-document.getElementById('btnConfirmBooster').addEventListener('click', () => {
-  if (!view.selectedCell) return;
-  applyBoosterAt(view.selectedCell);
 });
 document.getElementById('boosterBar').addEventListener('click', (event) => {
   const button = event.target.closest('[data-booster]');
@@ -950,7 +942,6 @@ window.__bubblePop = {
       aiming: view.aiming,
       flying: !!view.flying,
       boosterMode: view.boosterMode,
-      selectedCell: view.selectedCell,
       aimTrace: view.aimTrace,
     };
   },
