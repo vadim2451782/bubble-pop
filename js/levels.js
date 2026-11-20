@@ -9,6 +9,21 @@ import { connectPattern } from './grid.js';
 const ROW_WIDTH = (r) => (r % 2 === 0 ? COLS : COLS - 1);
 const MID = (w) => (w - 1) / 2;
 
+/** Ten themed worlds of ten levels each, used by the level map. */
+export const LEVELS_PER_WORLD = 10;
+export const WORLDS = [
+  { name: 'Карамельная бухта', icon: 'i-world-sweet', tint: 'rgba(255, 143, 177, 0.16)', glow: 'rgba(255, 143, 177, 0.42)' },
+  { name: 'Мыльная роща', icon: 'i-world-bubble', tint: 'rgba(126, 231, 200, 0.14)', glow: 'rgba(126, 231, 200, 0.4)' },
+  { name: 'Радужные горы', icon: 'i-rainbow', tint: 'rgba(178, 141, 255, 0.16)', glow: 'rgba(178, 141, 255, 0.42)' },
+  { name: 'Леденцовый сад', icon: 'i-world-candy', tint: 'rgba(255, 209, 102, 0.15)', glow: 'rgba(255, 209, 102, 0.42)' },
+  { name: 'Пузырьковый город', icon: 'i-world-city', tint: 'rgba(110, 199, 245, 0.15)', glow: 'rgba(110, 199, 245, 0.4)' },
+  { name: 'Космические пузыри', icon: 'i-world-planet', tint: 'rgba(167, 139, 250, 0.17)', glow: 'rgba(167, 139, 250, 0.44)' },
+  { name: 'Подводный мир', icon: 'i-world-fish', tint: 'rgba(45, 212, 191, 0.15)', glow: 'rgba(45, 212, 191, 0.4)' },
+  { name: 'Замок сладостей', icon: 'i-world-castle', tint: 'rgba(244, 114, 182, 0.15)', glow: 'rgba(244, 114, 182, 0.42)' },
+  { name: 'Облачный край', icon: 'i-world-cloud', tint: 'rgba(165, 180, 252, 0.16)', glow: 'rgba(165, 180, 252, 0.42)' },
+  { name: 'Звёздная фиеста', icon: 'i-world-party', tint: 'rgba(255, 224, 102, 0.15)', glow: 'rgba(255, 224, 102, 0.45)' },
+];
+
 /* ------------------------------------------------------------------ shapes */
 
 const SHAPES = {
@@ -155,6 +170,30 @@ const SPECS = [
   { name: 'Космос', rows: 10, colors: 6, shape: 'space', style: 'mosaic', shots: 48 },
   { name: 'Финал', rows: 10, colors: 6, shape: 'full', style: 'checker', shots: 52 },
 ];
+
+/* The first 24 levels are hand-tuned; the remaining 76 continue the ten themed
+ * worlds. Each is still built by the same deterministic pipeline, so every
+ * pattern is connected to the ceiling and every level has a generous shot
+ * budget for its bubble count. */
+const LATE_SHAPES = [
+  'full', 'pyramid', 'diamond', 'columns', 'wave', 'shield', 'zigzag',
+  'towers', 'bowl', 'honeycomb', 'star', 'arch', 'maze', 'butterfly',
+  'snowflake', 'vortex', 'fortress', 'crystal', 'ocean', 'space',
+];
+const LATE_STYLES = ['groups', 'checker', 'diagonal', 'vertical', 'rings', 'mosaic', 'spiral', 'waves'];
+
+for (let i = SPECS.length; i < 100; i += 1) {
+  const world = Math.floor(i / 10);
+  const within = i % 10;
+  SPECS.push({
+    name: `${WORLDS[world].name} ${i + 1}`,
+    rows: Math.min(10, 6 + Math.floor(world / 3) + (within % 2)),
+    colors: Math.min(6, 4 + Math.floor(world / 4)),
+    shape: LATE_SHAPES[(i * 3 + world) % LATE_SHAPES.length],
+    style: LATE_STYLES[(i + within) % LATE_STYLES.length],
+    shots: 34 + Math.floor(world * 1.2) + Math.floor(within / 2),
+  });
+}
 
 function buildLevel(spec, index) {
   const id = index + 1;

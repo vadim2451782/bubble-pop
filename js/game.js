@@ -141,8 +141,14 @@ export class Game {
         if (group.length >= 3) {
           result.popped = group;
           this.grid.removeCells(group);
-          result.falling = this.grid.findFloating();
-          this.grid.removeCells(result.falling);
+          const fallingCells = this.grid.findFloating();
+          // Capture colours before removing: renderer needs them for the fall.
+          result.falling = fallingCells.map(({ r, c }) => ({
+            r,
+            c,
+            color: this.grid.get(r, c),
+          }));
+          this.grid.removeCells(fallingCells);
         }
       }
     }

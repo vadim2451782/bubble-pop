@@ -69,10 +69,10 @@ export const SCORE = {
 /** How many bubbles must be cleared to earn one coin. */
 export const BUBBLES_PER_COIN = 4;
 
-export const START_COINS = 150;
+export const START_COINS = 50;
 export const START_BOOSTERS = { bomb: 1, lightning: 1, rainbow: 1, rocket: 1 };
 
-export const MAX_LEVEL = 24;
+export const MAX_LEVEL = 100;
 
 export const STORAGE_KEY = 'bubblepop.save.v1';
 export const SAVE_VERSION = 1;

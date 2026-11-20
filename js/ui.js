@@ -3,7 +3,7 @@
  * Game logic stays in Game; this module only reflects it.
  */
 import { BOOSTER_ORDER, BOOSTERS } from './config.js';
-import { LEVELS } from './levels.js';
+import { LEVELS, LEVELS_PER_WORLD, WORLDS } from './levels.js';
 
 const $ = (id) => document.getElementById(id);
 const starsMarkup = () => `
@@ -211,33 +211,79 @@ export class UI {
   }
 
   renderLevels() {
-    const frag = [];
-    for (const level of LEVELS) {
-      const unlocked = level.id <= this.store.unlocked;
-      const rec = this.store.getLevelRecord(level.id);
-      const classes = ['level-tile'];
-      if (!unlocked) classes.push('is-locked');
-      if (rec.stars > 0) classes.push('is-done');
-      if (level.id === Math.min(LEVELS.length, this.store.unlocked) && unlocked) classes.push('is-current');
-      frag.push(`
-        <button class="${classes.join(' ')}" type="button"
-          data-action="${unlocked ? 'level' : 'lockedLevel'}" data-level="${level.id}"
-          ${unlocked ? '' : 'aria-disabled="true"'}
-          aria-label="Уровень ${level.id}. ${level.name}. ${rec.stars} из 3 звёзд${unlocked ? '' : '. Закрыт'}">
-          ${unlocked ? '' : '<svg class="icon lock-chip"><use href="#i-lock"></use></svg>'}
-          <b>${level.id}</b>
-          ${rec.stars > 0 ? `<div class="stars" data-stars="${rec.stars}" aria-hidden="true">${starsMarkup()}</div>` : ''}
-          <small>${unlocked ? (rec.stars > 0 ? 'пройден' : 'играть') : 'закрыт'}</small>
-        </button>`);
-    }
-    this.el.levelGrid.innerHTML = frag.join('');
+    const currentLevel = Math.min(LEVELS.length, this.store.unlocked);
+    const worlds = [];
     let completed = 0;
-    for (const level of LEVELS) {
-      if (this.store.getLevelRecord(level.id).stars > 0) completed += 1;
+
+    for (let w = 0; w < WORLDS.length; w += 1) {
+      const start = w * LEVELS_PER_WORLD + 1;
+      if (start > LEVELS.length) break;
+      const end = Math.min(LEVELS.length, start + LEVELS_PER_WORLD - 1);
+      const world = WORLDS[w];
+      let worldDone = 0;
+      let worldStars = 0;
+      const tiles = [];
+
+      for (let id = start; id <= end; id += 1) {
+        const level = LEVELS[id - 1];
+        const unlocked = id <= this.store.unlocked;
+        const rec = this.store.getLevelRecord(id);
+        if (rec.stars > 0) {
+          worldDone += 1;
+          completed += 1;
+        }
+        worldStars += rec.stars;
+
+        const classes = ['level-tile'];
+        if (!unlocked) classes.push('is-locked');
+        if (rec.stars > 0) classes.push('is-done');
+        if (id === currentLevel && unlocked) classes.push('is-current');
+        tiles.push(`
+          <button class="${classes.join(' ')}" type="button"
+            style="--tile-glow:${world.glow};--tile-tint:${world.tint}"
+            data-action="${unlocked ? 'level' : 'lockedLevel'}" data-level="${id}"
+            ${unlocked ? '' : 'aria-disabled="true"'}
+            aria-label="Уровень ${id}. ${level.name}. ${rec.stars} из 3 звёзд${unlocked ? '' : '. Закрыт'}">
+            ${unlocked ? '' : '<svg class="icon lock-chip"><use href="#i-lock"></use></svg>'}
+            <b>${id}</b>
+            ${rec.stars > 0 ? `<div class="stars" data-stars="${rec.stars}" aria-hidden="true">${starsMarkup()}</div>` : ''}
+            <small>${unlocked ? (rec.stars > 0 ? 'пройден' : 'играть') : 'закрыт'}</small>
+          </button>`);
+      }
+
+      const worldUnlocked = start <= this.store.unlocked;
+      const isCurrentWorld = currentLevel >= start && currentLevel <= end;
+      worlds.push(`
+        <section class="level-world${worldUnlocked ? '' : ' is-locked'}${isCurrentWorld ? ' is-current' : ''}"
+          style="--world-tint:${world.tint};--world-glow:${world.glow}">
+          <header class="level-world__head">
+            <span class="level-world__emoji" aria-hidden="true">
+              <svg class="icon"><use href="#${world.icon}"></use></svg>
+            </span>
+            <div class="level-world__title">
+              <h3>${world.name}</h3>
+              <small>${worldDone} из ${end - start + 1} · ★ ${worldStars}</small>
+            </div>
+            ${worldUnlocked ? '' : '<span class="level-world__lock"><svg class="icon"><use href="#i-lock"></use></svg></span>'}
+          </header>
+          <div class="level-world__grid">${tiles.join('')}</div>
+        </section>`);
     }
+
+    this.el.levelGrid.innerHTML = worlds.join('');
     const percent = Math.round((completed / LEVELS.length) * 100);
     this.el.levelsProgressFill.style.width = `${percent}%`;
     this.el.levelsProgressText.textContent = `${completed} из ${LEVELS.length} уровней`;
+
+    // Open the map at the player's current level, not at the first world.
+    requestAnimationFrame(() => {
+      const current = this.el.levelGrid.querySelector('.level-tile.is-current');
+      if (!current) return;
+      const tileRect = current.getBoundingClientRect();
+      const gridRect = this.el.levelGrid.getBoundingClientRect();
+      const delta = (tileRect.top + tileRect.height / 2) - (gridRect.top + gridRect.height / 2);
+      this.el.levelGrid.scrollTop += delta;
+    });
   }
 
   renderShop() {
